@@ -344,14 +344,17 @@ func (self *worker) wait() {
 	for {
 		mustCommitNewWork := true
 		for result := range self.recv {
+			log.Info("[Liam] Receive result")
 			atomic.AddInt32(&self.atWork, -1)
 
 			if result == nil {
+				log.Info("[Liam] result == nil")
 				continue
 			}
 			block := result.Block
 			if self.config.XDPoS != nil && block.NumberU64() >= self.config.XDPoS.Epoch && len(block.Validator()) == 0 {
 				self.mux.Post(core.NewMinedBlockEvent{Block: block})
+				log.Info("[Liam] Validator length equal 0")
 				continue
 			}
 			work := result.Work
@@ -359,6 +362,7 @@ func (self *worker) wait() {
 			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
 			hash := block.Hash()
 			receipts := make([]*types.Receipt, len(work.receipts))
+			log.Info("[Liam] Process receipt")
 			for i, receipt := range work.receipts {
 				// add block location fields
 				receipt.BlockHash = hash
@@ -370,13 +374,18 @@ func (self *worker) wait() {
 			}
 			// Update the block hash in all logs since it is now available and not when the
 			// receipt/log of individual transactions were created.
+			log.Info("[Liam] Update block hash")
 			for _, log := range work.state.Logs() {
 				log.BlockHash = hash
 			}
 			// Commit block and state to database.
+			log.Info("[Liam] get currentMu Lock")
 			self.currentMu.Lock()
+			log.Info("[Liam] write block with state")
 			stat, err := self.chain.WriteBlockWithState(block, receipts, work.state, work.tradingState, work.lendingState)
+			log.Info("[Liam] write block with state and going to unlock")
 			self.currentMu.Unlock()
+			log.Info("[Liam] unlock")
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
@@ -386,6 +395,7 @@ func (self *worker) wait() {
 				// implicit by posting ChainHeadEvent
 				mustCommitNewWork = false
 			}
+			log.Info("[Liam] broadcast new block")
 			// Broadcast the block and announce chain insertion event
 			self.mux.Post(core.NewMinedBlockEvent{Block: block})
 			var (
@@ -396,6 +406,8 @@ func (self *worker) wait() {
 			if stat == core.CanonStatTy {
 				events = append(events, core.ChainHeadEvent{Block: block})
 			}
+			log.Info("[Liam] process xdpos logic")
+
 			if work.config.XDPoS != nil {
 				// epoch block
 				isEpochSwitchBlock, _, err := self.engine.(*XDPoS.XDPoS).IsEpochSwitch(block.Header())
@@ -406,9 +418,12 @@ func (self *worker) wait() {
 					core.CheckpointCh <- 1
 				}
 			}
+			log.Info("[Liam] udpate block hash cache")
 			self.chain.UpdateBlocksHashCache(block)
+			log.Info("[Liam] udpate chain events")
 			self.chain.PostChainEvents(events, logs)
 
+			log.Info("[Liam] insert blocks")
 			// Insert the block into the set of pending ones to wait for confirmations
 			self.unconfirmed.Insert(block.NumberU64(), block.Hash())
 
@@ -1067,3 +1082,4 @@ func (env *Work) commitTransaction(balanceFee map[common.Address]*big.Int, tx *t
 
 	return nil, receipt.Logs, tokenFeeUsed, gas
 }
+
