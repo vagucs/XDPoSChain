@@ -427,10 +427,11 @@ func (self *worker) wait() {
 			// Insert the block into the set of pending ones to wait for confirmations
 			self.unconfirmed.Insert(block.NumberU64(), block.Hash())
 
+			log.Info("[Liam] commitNewWork", "mustCommitNewWork", mustCommitNewWork)
 			if mustCommitNewWork {
 				self.commitNewWork()
 			}
-
+			log.Info("[Liam] finish commitNewWork")
 			if self.config.XDPoS != nil {
 				c := self.engine.(*XDPoS.XDPoS)
 				err = c.HandleProposedBlock(self.chain, block.Header())
@@ -460,6 +461,7 @@ func (self *worker) wait() {
 					}
 				}
 			}
+			log.Info("[Liam] finish recv round")
 		}
 	}
 }
@@ -604,6 +606,8 @@ func (self *worker) commitNewWork() {
 		log.Error("Failed to prepare header for new block", "err", err)
 		return
 	}
+	log.Info("[Liam] [commitNewWork] start dao", "elapsed", common.PrettyDuration(time.Since(tstart)))
+
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := self.config.DAOForkBlock; daoBlock != nil {
 		// Check whether the block is among the fork extra-override range
@@ -617,6 +621,9 @@ func (self *worker) commitNewWork() {
 			}
 		}
 	}
+
+	log.Info("[Liam] [commitNewWork] make current", "elapsed", common.PrettyDuration(time.Since(tstart)))
+
 	// Could potentially happen if starting to mine in an odd state.
 	err := self.makeCurrent(parent, header)
 	if err != nil {
@@ -645,6 +652,8 @@ func (self *worker) commitNewWork() {
 		liquidatedTrades, autoRepayTrades, autoTopUpTrades, autoRecallTrades []*lendingstate.LendingTrade
 		lendingFinalizedTradeTransaction                                     *types.Transaction
 	)
+	log.Info("[Liam] [commitNewWork] make current", "elapsed", common.PrettyDuration(time.Since(tstart)))
+
 	feeCapacity := state.GetTRC21FeeCapacityFromStateWithCache(parent.Root(), work.state)
 	if self.config.XDPoS != nil {
 		isEpochSwitchBlock, _, err := self.engine.(*XDPoS.XDPoS).IsEpochSwitch(header)
@@ -660,6 +669,8 @@ func (self *worker) commitNewWork() {
 			txs, specialTxs = types.NewTransactionsByPriceAndNonce(self.current.signer, pending, signers, feeCapacity)
 		}
 	}
+
+	log.Info("[Liam] [commitNewWork] xdcx transactions", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	if atomic.LoadInt32(&self.mining) == 1 {
 		wallet, err := self.eth.AccountManager().Find(accounts.Account{Address: self.coinbase})
 		if err != nil {
@@ -796,17 +807,22 @@ func (self *worker) commitNewWork() {
 			specialTxs = append(specialTxs, txStateRoot)
 		}
 	}
+
+	log.Info("[Liam] [commitNewWork] start commitTransactions", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	work.commitTransactions(self.mux, feeCapacity, txs, specialTxs, self.chain, self.coinbase)
 	// compute uncles for the new block.
 	var (
 		uncles []*types.Header
 	)
 
+	log.Info("[Liam] [commitNewWork] start Finalize", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	// Create the new block to seal with the consensus engine
 	if work.Block, err = self.engine.Finalize(self.chain, header, work.state, work.parentState, work.txs, uncles, work.receipts); err != nil {
 		log.Error("Failed to finalize block for sealing", "err", err)
 		return
 	}
+
+	log.Info("[Liam] [commitNewWork] finish Finalize", "elapsed", common.PrettyDuration(time.Since(tstart)))
 
 	if atomic.LoadInt32(&self.mining) == 1 {
 		log.Info("Committing new block", "number", work.Block.Number(), "txs", work.tcount, "special-txs", len(specialTxs), "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
@@ -1082,4 +1098,3 @@ func (env *Work) commitTransaction(balanceFee map[common.Address]*big.Int, tx *t
 
 	return nil, receipt.Logs, tokenFeeUsed, gas
 }
-
