@@ -939,7 +939,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			totalFeeUsed = totalFeeUsed.Add(totalFeeUsed, fee)
 		}
 	}
-	log.Info("[Liam] [commitTransactions] start process normal txs", "elapsed", common.PrettyDuration(time.Since(tstart)))
+	log.Info("[Liam] [commitTransactions] start process a list of normal txs", "elapsed", common.PrettyDuration(time.Since(tstart)))
 
 	for {
 		// If we don't have enough gas for any further transactions then we're done
@@ -957,7 +957,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		if tx == nil {
 			break
 		}
-		log.Info("[Liam] [commitTransactions] start process normal tx", "to", tx.To(), "from", tx.From(), "elapsed", common.PrettyDuration(time.Since(tstart)))
+		log.Info("[Liam] [commitTransactions] start process normal tx", "to", tx.To(), "from", tx.From(), "nonce", tx.Nonce(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 
 		//HF number for black-list
 		to := tx.To()
@@ -1021,17 +1021,17 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		nonce := env.state.GetNonce(from)
 		if nonce > tx.Nonce() {
 			// New head notification data race between the transaction pool and miner, shift
-			log.Info("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
+			log.Info("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce(), "state_nonce", nonce)
 			txs.Shift()
 			continue
 		}
 		if nonce < tx.Nonce() {
 			// Reorg notification data race between the transaction pool and miner, skip account =
-			log.Info("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
+			log.Info("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce(), "state_nonce", nonce)
 			txs.Pop()
 			continue
 		}
-		log.Info("[Liam] [commitTransactions] start commit tx", "elapsed", common.PrettyDuration(time.Since(tstart)))
+		log.Info("[Liam] [commitTransactions] start commit tx", "nonce", nonce, "elapsed", common.PrettyDuration(time.Since(tstart)))
 
 		err, logs, tokenFeeUsed, gas := env.commitTransaction(balanceFee, tx, bc, coinbase, gp)
 		switch {
@@ -1073,6 +1073,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			balanceUpdated[*to] = balanceFee[*to]
 			totalFeeUsed = totalFeeUsed.Add(totalFeeUsed, fee)
 		}
+		log.Info("[Liam] [commitTransactions] finish this tx")
 	}
 	log.Info("[Liam] [commitTransactions] finish all tx, update trc21 fee", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	state.UpdateTRC21Fee(env.state, balanceUpdated, totalFeeUsed)
