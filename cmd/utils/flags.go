@@ -20,10 +20,12 @@ package utils
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"path/filepath"
 	"runtime"
+	godebug "runtime/debug"
 	"strconv"
 	"strings"
 
@@ -53,6 +55,7 @@ import (
 	"github.com/XinFinOrg/XDPoSChain/p2p/netutil"
 	"github.com/XinFinOrg/XDPoSChain/params"
 	whisper "github.com/XinFinOrg/XDPoSChain/whisper/whisperv6"
+	gopsutil "github.com/shirou/gopsutil/mem"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -312,6 +315,10 @@ var (
 		Name:  "cache.gc",
 		Usage: "Percentage of cache memory allowance to use for trie pruning",
 		Value: 25,
+	}
+	FDLimitFlag = cli.IntFlag{
+		Name:  "fdlimit",
+		Usage: "Raise the open file descriptor resource limit (default = system fd limit)",
 	}
 	// Miner settings
 	StakingEnabledFlag = cli.BoolFlag{
@@ -817,20 +824,29 @@ func setPrefix(ctx *cli.Context, cfg *node.Config) {
 
 // MakeDatabaseHandles raises out the number of allowed file handles per process
 // for XDC and returns half of the allowance to assign to the database.
-func MakeDatabaseHandles() int {
-	limit, err := fdlimit.Current()
+func MakeDatabaseHandles(max int) int {
+	limit, err := fdlimit.Maximum()
 	if err != nil {
 		Fatalf("Failed to retrieve file descriptor allowance: %v", err)
 	}
-	if limit < 2048 {
-		if err := fdlimit.Raise(2048); err != nil {
-			Fatalf("Failed to raise file descriptor allowance: %v", err)
-		}
+	switch {
+	case max == 0:
+		// User didn't specify a meaningful value, use system limits
+	case max < 128:
+		// User specified something unhealthy, just use system defaults
+		log.Error("File descriptor limit invalid (<128)", "had", max, "updated", limit)
+	case max > limit:
+		// User requested more than the OS allows, notify that we can't allocate it
+		log.Warn("Requested file descriptors denied by OS", "req", max, "limit", limit)
+	default:
+		// User limit is meaningful and within allowed range, use that
+		limit = max
 	}
-	if limit > 2048 { // cap database file descriptors even if more is available
-		limit = 2048
+	raised, err := fdlimit.Raise(uint64(limit))
+	if err != nil {
+		Fatalf("Failed to raise file descriptor allowance: %v", err)
 	}
-	return limit / 2 // Leave half for networking and other stuff
+	return int(raised / 2) // Leave half for networking and other stuff
 }
 
 // MakeAddress converts an account specified directly as a hex encoded string or
@@ -1162,6 +1178,26 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	setTxPool(ctx, &cfg.TxPool)
 	setEthash(ctx, cfg)
 
+	// Cap the cache allowance and tune the garbage collector
+	mem, err := gopsutil.VirtualMemory()
+	if err == nil {
+		if 32<<(^uintptr(0)>>63) == 32 && mem.Total > 2*1024*1024*1024 {
+			log.Warn("Lowering memory allowance on 32bit arch", "available", mem.Total/1024/1024, "addressable", 2*1024)
+			mem.Total = 2 * 1024 * 1024 * 1024
+		}
+		allowance := int(mem.Total / 1024 / 1024 / 3)
+		if cache := ctx.Int(CacheFlag.Name); cache > allowance {
+			log.Warn("Sanitizing cache to Go's GC limits", "provided", cache, "updated", allowance)
+			ctx.Set(CacheFlag.Name, strconv.Itoa(allowance))
+		}
+	}
+	// Ensure Go's GC ignores the database cache for trigger percentage
+	cache := ctx.Int(CacheFlag.Name)
+	gogc := math.Max(20, math.Min(100, 100/(float64(cache)/1024)))
+
+	log.Debug("Sanitizing Go's GC trigger", "percent", int(gogc))
+	godebug.SetGCPercent(int(gogc))
+
 	switch {
 	case ctx.GlobalIsSet(SyncModeFlag.Name):
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
@@ -1183,7 +1219,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheDatabaseFlag.Name) {
 		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheDatabaseFlag.Name) / 100
 	}
-	cfg.DatabaseHandles = MakeDatabaseHandles()
+	cfg.DatabaseHandles = MakeDatabaseHandles(ctx.GlobalInt(FDLimitFlag.Name))
 
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
@@ -1272,7 +1308,7 @@ func SetupNetwork(ctx *cli.Context) {
 func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	var (
 		cache   = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheDatabaseFlag.Name) / 100
-		handles = MakeDatabaseHandles()
+		handles = MakeDatabaseHandles(ctx.GlobalInt(FDLimitFlag.Name))
 	)
 	name := "chaindata"
 	if ctx.GlobalBool(LightModeFlag.Name) {
