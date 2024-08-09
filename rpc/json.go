@@ -27,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/XinFinOrg/XDPoSChain/log"
 )
 
 const (
@@ -92,6 +94,8 @@ func (msg *jsonrpcMessage) String() string {
 }
 
 func (msg *jsonrpcMessage) errorResponse(err error) *jsonrpcMessage {
+	log.Info("errorResponse", "err", err)
+	log.Info("errorResponse", "err.Error()", err.Error())
 	resp := errorMessage(err)
 	resp.ID = msg.ID
 	return resp
@@ -107,6 +111,8 @@ func (msg *jsonrpcMessage) response(result interface{}) *jsonrpcMessage {
 }
 
 func errorMessage(err error) *jsonrpcMessage {
+	log.Info("errorMessage", "err", err)
+	log.Info("errorMessage", "err.Error()", err.Error())
 	msg := &jsonrpcMessage{Version: vsn, ID: null, Error: &jsonError{
 		Code:    defaultErrorCode,
 		Message: err.Error(),
