@@ -23,13 +23,13 @@ import (
 	"sort"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/XinFinOrg/XDPoSChain/common"
 	"github.com/XinFinOrg/XDPoSChain/common/mclock"
 	"github.com/XinFinOrg/XDPoSChain/core"
 	"github.com/XinFinOrg/XDPoSChain/core/types"
 	"github.com/XinFinOrg/XDPoSChain/log"
 	"github.com/XinFinOrg/XDPoSChain/metrics"
+	mapset "github.com/deckarep/golang-set"
 )
 
 const (

@@ -669,10 +669,11 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	heads := TxByPriceAndTime{}
 	heads.payersSwap = payersSwap
 	specialTxs := Transactions{}
-	for _, accTxs := range txs {
+	for _, accTxs := range txs { // loop all the address
 		from, _ := Sender(signer, accTxs[0])
 		var normalTxs Transactions
 		lastSpecialTx := -1
+		// record the last lastSpecialTx
 		if len(signers) > 0 {
 			if _, ok := signers[from]; ok {
 				for i, tx := range accTxs {
@@ -684,16 +685,18 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 		}
 		if lastSpecialTx >= 0 {
 			for i := 0; i <= lastSpecialTx; i++ {
-				specialTxs = append(specialTxs, accTxs[i])
+				specialTxs = append(specialTxs, accTxs[i]) //append all transactions until last special tx
 			}
-			normalTxs = accTxs[lastSpecialTx+1:]
+			normalTxs = accTxs[lastSpecialTx+1:] // after that, record the normal transactions
 		} else {
 			normalTxs = accTxs
 		}
+		// get the final SpecialTxs and normalTxs
+
 		if len(normalTxs) > 0 {
-			heads.txs = append(heads.txs, normalTxs[0])
+			heads.txs = append(heads.txs, normalTxs[0]) //add the least nonce tx into head
 			// Ensure the sender address is from the signer
-			txs[from] = normalTxs[1:]
+			txs[from] = normalTxs[1:] // reduce the first one on txs[from]
 		}
 	}
 	heap.Init(&heads)
