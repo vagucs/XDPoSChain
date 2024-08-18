@@ -957,7 +957,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		if tx == nil {
 			break
 		}
-		log.Info("[Liam] [commitTransactions] start process normal tx", "to", tx.To(), "from", tx.From(), "nonce", tx.Nonce(), "elapsed", common.PrettyDuration(time.Since(tstart)))
+		log.Info("[Liam] [commitTransactions] start process normal tx", "hash", tx.Hash(), "to", tx.To(), "from", tx.From(), "nonce", tx.Nonce(), "elapsed", common.PrettyDuration(time.Since(tstart)))
 
 		//HF number for black-list
 		to := tx.To()
