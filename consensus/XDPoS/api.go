@@ -17,6 +17,7 @@ package XDPoS
 
 import (
 	"encoding/base64"
+	"errors"
 	"math/big"
 
 	"github.com/XinFinOrg/XDPoSChain/common"
@@ -319,4 +320,34 @@ func calculateSigners(message map[string]SignerTypes, pool map[string]map[common
 			MissingSigners: missingSigners,
 		}
 	}
+}
+
+func (api *API) GetV2BlockSigners(header *types.Header) error {
+	var decodedExtraField types.ExtraFields_v2
+	err := utils.DecodeBytesExtraFields(header.Extra, &decodedExtraField)
+	if err != nil {
+		return errors.Join(errors.New("error on decode extra fields"), err)
+	}
+	// decodedExtraField.QuorumCert
+	/*
+			var signerList []string
+
+		// The QC signatures are signed by votes special struct VoteForSign
+		quorumCertSignedHash := types.VoteSigHash(&types.VoteForSign{
+			ProposedBlockInfo: quorumCert.ProposedBlockInfo,
+			GapNumber:         quorumCert.GapNumber,
+		})
+		for _, signature := range quorumCert.Signatures {
+			var signerAddress common.Address
+			pubkey, err := crypto.Ecrecover(quorumCertSignedHash.Bytes(), signature)
+			if err != nil {
+				log.Error("[getQcSignerAddresses] Fail to Ecrecover signer from the quorumCertSignedHash", "quorumCert.GapNumber", quorumCert.GapNumber, "quorumCert.ProposedBlockInfo", quorumCert.ProposedBlockInfo)
+			}
+
+			copy(signerAddress[:], crypto.Keccak256(pubkey[1:])[12:])
+			signerList = append(signerList, signerAddress.Hex())
+		}
+		return signerList
+	*/
+	return nil
 }
