@@ -1145,6 +1145,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 	)
 	for {
 		// Launch next background reorg if needed
+		log.Info("[Liam] [scheduleReorgLoop] start process", "curDone", curDone, "launchNextRun", launchNextRun)
 		if curDone == nil && launchNextRun {
 			// Run the background reorg and announcements
 			go pool.runReorg(nextDone, reset, dirtyAccounts, queuedEvents)
@@ -1159,6 +1160,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 
 		select {
 		case req := <-pool.reqResetCh:
+			log.Info("[Liam] [scheduleReorgLoop] get reqResetCh")
 			// Reset request: update head if request is already pending.
 			if reset == nil {
 				reset = req
@@ -1169,6 +1171,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 			pool.reorgDoneCh <- nextDone
 
 		case req := <-pool.reqPromoteCh:
+			log.Info("[Liam] [scheduleReorgLoop] get reqPromoteCh")
 			// Promote request: update address set if request is already pending.
 			if dirtyAccounts == nil {
 				dirtyAccounts = req
@@ -1179,6 +1182,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 			pool.reorgDoneCh <- nextDone
 
 		case tx := <-pool.queueTxEventCh:
+			log.Info("[Liam] [scheduleReorgLoop] get queueTxEventCh")
 			// Queue up the event, but don't schedule a reorg. It's up to the caller to
 			// request one later if they want the events sent.
 			addr, _ := types.Sender(pool.signer, tx)
@@ -1188,9 +1192,11 @@ func (pool *TxPool) scheduleReorgLoop() {
 			queuedEvents[addr].Put(tx)
 
 		case <-curDone:
+			log.Info("[Liam] [scheduleReorgLoop] get curDone")
 			curDone = nil
 
 		case <-pool.reorgShutdownCh:
+			log.Info("[Liam] [scheduleReorgLoop] get reorgShutdownCh")
 			// Wait for current run to finish.
 			if curDone != nil {
 				<-curDone
@@ -1212,6 +1218,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 		// the flatten operation can be avoided.
 		promoteAddrs = dirtyAccounts.flatten()
 	}
+	log.Info("[Liam] [runReorg] get Lock")
 	pool.mu.Lock()
 	if reset != nil {
 		// Reset from the old head to the new, rescheduling any reorged transactions
@@ -1249,6 +1256,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 		pool.pendingNonces.set(addr, highestPending.Nonce()+1)
 	}
 	pool.mu.Unlock()
+	log.Info("[Liam] [runReorg] Unlock")
 
 	// Notify subsystems for newly added transactions
 	for _, tx := range promoted {
