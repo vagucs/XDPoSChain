@@ -20,6 +20,8 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+
+	"github.com/XinFinOrg/XDPoSChain/log"
 )
 
 var errBadChannel = errors.New("event: Subscribe argument does not have sendable channel type")
@@ -130,18 +132,24 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 	rvalue := reflect.ValueOf(value)
 
 	f.once.Do(f.init)
-	<-f.sendLock
 
+	log.Info("[Liam] [Send] release object in sendLock")
+	<-f.sendLock
+	log.Info("[Liam] [Send] finished release object in channel sendLock")
+	log.Info("[Liam] [Send] get mu lock")
 	// Add new cases from the inbox after taking the send lock.
 	f.mu.Lock()
+	log.Info("[Liam] [Send] got mu lock")
 	f.sendCases = append(f.sendCases, f.inbox...)
 	f.inbox = nil
 
 	if !f.typecheck(rvalue.Type()) {
+		log.Info("[Liam] [Send] going to panic and send someting to mu lock")
 		f.sendLock <- struct{}{}
 		panic(feedTypeError{op: "Send", got: rvalue.Type(), want: f.etype})
 	}
 	f.mu.Unlock()
+	log.Info("[Liam] [Send] unlock mu lock")
 
 	// Set the sent value on all channels.
 	for i := firstSubSendCase; i < len(f.sendCases); i++ {
@@ -150,17 +158,20 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 
 	// Send until all channels except removeSub have been chosen.
 	cases := f.sendCases
+	log.Info("[Liam] [Send] going to loop try to send", "lenCases", len(cases))
 	for {
 		// Fast path: try sending without blocking before adding to the select set.
 		// This should usually succeed if subscribers are fast enough and have free
 		// buffer space.
 		for i := firstSubSendCase; i < len(cases); i++ {
+			log.Info("[Liam] [Send] try send")
 			if cases[i].Chan.TrySend(rvalue) {
 				nsent++
 				cases = cases.deactivate(i)
 				i--
 			}
 		}
+		log.Info("[Liam] [Send] finish try to send", "lenCases", len(cases))
 		if len(cases) == firstSubSendCase {
 			break
 		}
@@ -178,11 +189,14 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 		}
 	}
 
+	log.Info("[Liam] [Send] reset Send")
 	// Forget about the sent value and hand off the send lock.
 	for i := firstSubSendCase; i < len(f.sendCases); i++ {
 		f.sendCases[i].Send = reflect.Value{}
 	}
+	log.Info("[Liam] [Send] send object in sendLock")
 	f.sendLock <- struct{}{}
+	log.Info("[Liam] [Send] finished send object in sendLock")
 	return nsent
 }
 

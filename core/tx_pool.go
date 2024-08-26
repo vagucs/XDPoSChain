@@ -1220,6 +1220,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	}
 	log.Info("[Liam] [runReorg] get Lock")
 	pool.mu.Lock()
+	log.Info("[Liam] [runReorg] got Lock")
 	if reset != nil {
 		// Reset from the old head to the new, rescheduling any reorged transactions
 		pool.reset(reset.oldHead, reset.newHead)
@@ -1260,19 +1261,25 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 
 	// Notify subsystems for newly added transactions
 	for _, tx := range promoted {
+		log.Info("[Liam] [runReorg] get tx", "tx", tx.Hash())
 		addr, _ := types.Sender(pool.signer, tx)
 		if _, ok := events[addr]; !ok {
 			events[addr] = newTxSortedMap()
 		}
+		log.Info("[Liam] [runReorg] Put tx")
 		events[addr].Put(tx)
 	}
+	log.Info("[Liam] [runReorg] finish put events into address map", "lenEvents", len(events))
 	if len(events) > 0 {
 		var txs []*types.Transaction
 		for _, set := range events {
 			txs = append(txs, set.Flatten()...)
 		}
+		log.Info("[Liam] [runReorg] Send Txs Events")
 		pool.txFeed.Send(NewTxsEvent{txs})
+		log.Info("[Liam] [runReorg] Finsh Sent Events")
 	}
+	log.Info("[Liam] [runReorg] finish")
 }
 
 // reset retrieves the current state of the blockchain and ensures the content
