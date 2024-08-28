@@ -1238,7 +1238,8 @@ func (pm *ProtocolManager) txBroadcastLoop() {
 			pm.BroadcastTransactions(event.Txs, false) // Only then announce to the rest
 
 		// Err() channel will be closed when unsubscribing.
-		case <-pm.txsSub.Err():
+		case e := <-pm.txsSub.Err():
+			log.Error("[Liam] [txBroadcastLoop] txsSub has error", "error", e.Error())
 			return
 		}
 	}
