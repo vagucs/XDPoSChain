@@ -3,6 +3,10 @@ package engine_v2
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"math/big"
+	"path/filepath"
+	"strings"
 
 	"github.com/XinFinOrg/XDPoSChain/accounts"
 	"github.com/XinFinOrg/XDPoSChain/common"
@@ -217,4 +221,102 @@ func (x *XDPoS_v2) CalculateMissingRounds(chain consensus.ChainReader, header *t
 	}
 
 	return missedRoundsMetadata, nil
+}
+
+func (x *XDPoS_v2) GetBlockInRewardFolderByEpochNumber(chain consensus.ChainReader, targetEpochNum uint64) (*types.BlockInfo, *types.BlockInfo, error) {
+	// 1. go through the cache
+	var smallestEpochSwitchInfo *types.BlockInfo
+	var targetBlockInfo *types.BlockInfo
+	var targetNextBlockInfo *types.BlockInfo
+	for _, hash := range x.epochSwitches.Keys() {
+		hash, ok := hash.(common.Hash)
+		if !ok {
+			return nil, nil, errors.New("epochSwitches cache key != Hash type, must be a bug")
+		}
+		info, err := x.getEpochSwitchInfo(chain, nil, hash)
+		if err != nil {
+			return nil, nil, err
+		}
+		epochNum := x.config.V2.SwitchBlock.Uint64()/x.config.Epoch + uint64(info.EpochSwitchBlockInfo.Round)/x.config.Epoch
+		if epochNum == targetEpochNum {
+			targetBlockInfo = info.EpochSwitchBlockInfo
+			break
+		}
+		if smallestEpochSwitchInfo.Number.Cmp(info.EpochSwitchBlockInfo.Number) == 1 {
+			smallestEpochSwitchInfo = info.EpochSwitchBlockInfo
+		}
+	}
+	// 1.1. go again to find next block info
+	if targetBlockInfo != nil {
+		for _, hash := range x.epochSwitches.Keys() {
+			hash, ok := hash.(common.Hash)
+			if !ok {
+				return nil, nil, errors.New("epochSwitches cache key != Hash type, must be a bug")
+			}
+			info, err := x.getEpochSwitchInfo(chain, nil, hash)
+			if err != nil {
+				return nil, nil, err
+			}
+			if info.EpochSwitchParentBlockInfo.Round == targetBlockInfo.Round {
+				targetNextBlockInfo = info.EpochSwitchBlockInfo
+				break
+			}
+		}
+		return targetBlockInfo, targetNextBlockInfo, nil
+	}
+	// 2. if cache missed, use common.StoreRewardFolder to find the number and hash
+	// 2.1. find estimated block (which must be earlier or equal to than target block)
+	smallestEpochNum := x.config.V2.SwitchBlock.Uint64()/x.config.Epoch + uint64(smallestEpochSwitchInfo.Round)/x.config.Epoch
+	epoch := big.NewInt(int64(x.config.Epoch))
+	estblockNumDiff := new(big.Int).Mul(epoch, big.NewInt(int64(smallestEpochNum-targetEpochNum)))
+	if estblockNumDiff.Cmp(common.Big0) == -1 {
+		estblockNumDiff.Set(common.Big0)
+	}
+	estBlockNum := new(big.Int).Sub(smallestEpochSwitchInfo.Number, estblockNumDiff)
+	if estBlockNum.Cmp(x.config.V2.SwitchBlock) == -1 {
+		estBlockNum.Set(x.config.V2.SwitchBlock)
+	}
+	// 2.2. walk the dir
+	rewardBlockInfos := make([]*types.BlockInfo, 0)
+	filepath.WalkDir(common.StoreRewardFolder, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			fileName := filepath.Base(path)
+			parts := strings.Split(fileName, ".")
+			number, ok := big.NewInt(0).SetString(parts[0], 10)
+			if !ok {
+				return nil
+			}
+			if number.Cmp(estBlockNum) == -1 {
+				return nil
+			}
+			// this hash could be errored hash
+			hash := common.HexToHash(parts[1])
+			rewardBlockInfos = append(rewardBlockInfos, &types.BlockInfo{
+				Number: number,
+				Hash:   hash,
+			})
+		}
+		return nil
+	})
+	for i, info := range rewardBlockInfos {
+		header := chain.GetHeaderByHash(info.Hash)
+		_, round, _, err := x.getExtraFields(header)
+		if err != nil {
+			return nil, nil, err
+		}
+		info.Round = round
+		epochNum := x.config.V2.SwitchBlock.Uint64()/x.config.Epoch + uint64(round)/x.config.Epoch
+		if epochNum == targetEpochNum {
+			if i < len(rewardBlockInfos)-1 {
+				nextEpoch := rewardBlockInfos[i+1]
+				//todo: find next round, maybe unnecessary ?
+				return info, nextEpoch, nil
+			}
+			return info, nil, nil
+		}
+	}
+	return nil, nil, errors.New("input epoch number not found (all rounds in this epoch are missed, which is very rare)")
 }
