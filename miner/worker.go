@@ -603,7 +603,7 @@ func (w *worker) commitNewWork() {
 	}
 	// this will ensure we're not going off too far in the future
 	if now := time.Now().Unix(); tstamp > now {
-		wait := time.Duration(tstamp-now) * time.Second
+		wait := time.Duration(tstamp-now-1) * time.Second
 		log.Info("Mining too far in the future", "wait", common.PrettyDuration(wait))
 		time.Sleep(wait)
 	}
