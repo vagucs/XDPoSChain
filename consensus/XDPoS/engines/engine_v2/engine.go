@@ -271,7 +271,7 @@ func (x *XDPoS_v2) YourTurn(chain consensus.ChainReader, parent *types.Header, s
 		}
 	}
 
-	waitedTime := time.Now().Unix() - parent.Time.Int64()
+	waitedTime := time.Now().Unix() - parent.Time.Int64() + 1
 	minePeriod := x.config.V2.Config(uint64(x.currentRound)).MinePeriod
 	if waitedTime < int64(minePeriod) {
 		log.Trace("[YourTurn] wait after mine period", "minePeriod", minePeriod, "waitedTime", waitedTime)
