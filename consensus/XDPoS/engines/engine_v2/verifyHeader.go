@@ -43,7 +43,8 @@ func (x *XDPoS_v2) verifyHeader(chain consensus.ChainReader, header *types.Heade
 
 	if fullVerify {
 		// Don't waste time checking blocks from the future
-		if header.Time.Int64() > time.Now().Unix() {
+		// However, give it some relaxation to make block time not go beyond expected one
+		if header.Time.Int64() > time.Now().Unix()+int64(x.config.V2.CurrentConfig.MinePeriod)/2 {
 			return consensus.ErrFutureBlock
 		}
 	}
