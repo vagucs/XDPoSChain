@@ -705,12 +705,15 @@ func (self *worker) commitNewWork() {
 			log.Error("[commitNewWork] fail to check if block is epoch switch block when fetching pending transactions", "BlockNum", header.Number, "Hash", header.Hash())
 		}
 		if !isEpochSwitchBlock {
+			log.Info("[commitNewWork] LIAM get Pending")
 			pending, err := self.eth.TxPool().Pending()
 			if err != nil {
 				log.Error("Failed to fetch pending transactions", "err", err)
 				return
 			}
+			log.Info("[commitNewWork] LIAM Start NewTransactionsByPriceAndNonce")
 			txs, specialTxs = types.NewTransactionsByPriceAndNonce(self.current.signer, pending, signers, feeCapacity)
+			log.Info("[commitNewWork] LIAM End NewTransactionsByPriceAndNonce")
 		}
 	}
 	if atomic.LoadInt32(&self.mining) == 1 {
@@ -720,6 +723,7 @@ func (self *worker) commitNewWork() {
 			return
 		}
 		if self.config.XDPoS != nil && self.chain.Config().IsTIPXDCXMiner(header.Number) {
+			log.Info("[commitNewWork] LIAM Get XDCX and XDCLending")
 			XDCX := self.eth.GetXDCX()
 			XDCXLending := self.eth.GetXDCXLending()
 			if XDCX != nil && header.Number.Uint64() > self.config.XDPoS.Epoch {

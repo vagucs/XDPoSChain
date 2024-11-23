@@ -28,6 +28,7 @@ import (
 
 	"github.com/XinFinOrg/XDPoSChain/common"
 	"github.com/XinFinOrg/XDPoSChain/crypto"
+	"github.com/XinFinOrg/XDPoSChain/log"
 	"github.com/XinFinOrg/XDPoSChain/rlp"
 )
 
@@ -669,7 +670,8 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	heads := TxByPriceAndTime{}
 	heads.payersSwap = payersSwap
 	specialTxs := Transactions{}
-	for _, accTxs := range txs {
+	for addr, accTxs := range txs {
+		log.Info("[NewTransactionsByPriceAndNonce] LIAM txs loop", "addr", addr.Hex())
 		from, _ := Sender(signer, accTxs[0])
 		var normalTxs Transactions
 		lastSpecialTx := -1
@@ -677,11 +679,13 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 			if _, ok := signers[from]; ok {
 				for i, tx := range accTxs {
 					if tx.IsSpecialTransaction() {
+						log.Info("[NewTransactionsByPriceAndNonce] LIAM", "i", i, "from", from.Hex())
 						lastSpecialTx = i
 					}
 				}
 			}
 		}
+		log.Info("[NewTransactionsByPriceAndNonce] LIAM", "lastSpecialTx", lastSpecialTx)
 		if lastSpecialTx >= 0 {
 			for i := 0; i <= lastSpecialTx; i++ {
 				specialTxs = append(specialTxs, accTxs[i])
@@ -696,7 +700,9 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 			txs[from] = normalTxs[1:]
 		}
 	}
+	log.Info("[NewTransactionsByPriceAndNonce] Init Heap")
 	heap.Init(&heads)
+	log.Info("[NewTransactionsByPriceAndNonce] Finish Init Heap")
 
 	// Assemble and return the transaction set
 	return &TransactionsByPriceAndNonce{
