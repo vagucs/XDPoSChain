@@ -15,7 +15,7 @@ const (
 	EpocBlockOpening           = 850
 	EpocBlockRandomize         = 900
 	MaxMasternodes             = 18
-	MaxMasternodesV2           = 108 // Last v1 masternodes
+	MaxMasternodesV2           = 15 // Last v1 masternodes
 	LimitPenaltyEpoch          = 4
 	LimitPenaltyEpochV2        = 0
 	BlocksPerYearTest          = uint64(200000)
@@ -36,25 +36,25 @@ var TIP2019Block = big.NewInt(1)
 var TIPSigning = big.NewInt(3000000)
 var TIPRandomize = big.NewInt(3464000)
 
-var TIPV2SwitchBlock = big.NewInt(80370000) // Target 2nd Oct 2024
+var TIPV2SwitchBlock = big.NewInt(56828700) // Target 13rd Nov 2023
 
 var TIPIncreaseMasternodes = big.NewInt(5000000) // Upgrade MN Count at Block.
-var TIPNoHalvingMNReward = big.NewInt(38383838)  // hardfork no halving masternodes reward
-var BlackListHFNumber = uint64(38383838)
-var TIPXDCX = big.NewInt(38383838)
-var TIPXDCXLending = big.NewInt(38383838)
-var TIPXDCXCancellationFee = big.NewInt(38383838)
-var TIPXDCXCancellationFeeTestnet = big.NewInt(38383838)
-var TIPXDCXMinerDisable = big.NewInt(80370000)    // Target 2nd Oct 2024
-var TIPXDCXReceiverDisable = big.NewInt(80370900) // Target 2nd Oct 2024, safer to release after disable miner
+var TIPNoHalvingMNReward = big.NewInt(23779191)  // hardfork no halving masternodes reward
+var BlackListHFNumber = uint64(23779191)
+var TIPXDCX = big.NewInt(23779191)
+var TIPXDCXLending = big.NewInt(23779191)
+var TIPXDCXCancellationFee = big.NewInt(23779191)
+var TIPXDCXCancellationFeeTestnet = big.NewInt(23779191)
+var TIPXDCXMinerDisable = big.NewInt(61290000)    // Target 31st March 2024
+var TIPXDCXReceiverDisable = big.NewInt(66825000) // Target 26 Aug 2024
+var BerlinBlock = big.NewInt(61290000)
+var LondonBlock = big.NewInt(61290000)
+var MergeBlock = big.NewInt(61290000)
+var ShanghaiBlock = big.NewInt(61290000) // Target 31st March 2024
 var Eip1559Block = big.NewInt(9999999999)
-var BerlinBlock = big.NewInt(76321000)   // Target 19th June 2024
-var LondonBlock = big.NewInt(76321000)   // Target 19th June 2024
-var MergeBlock = big.NewInt(76321000)    // Target 19th June 2024
-var ShanghaiBlock = big.NewInt(76321000) // Target 19th June 2024
 
-var TIPXDCXTestnet = big.NewInt(38383838)
-var IsTestnet bool = false
+var TIPXDCXTestnet = big.NewInt(23779191)
+var IsTestnet bool = true
 var Enable0xPrefix bool = true
 var StoreRewardFolder string
 var RollbackHash Hash
@@ -82,10 +82,10 @@ var TRC21GasPrice = big.NewInt(250000000)
 var RateTopUp = big.NewInt(90) // 90%
 var BaseTopUp = big.NewInt(100)
 var BaseRecall = big.NewInt(100)
-var TIPTRC21Fee = big.NewInt(38383838)
-var TIPTRC21FeeTestnet = big.NewInt(38383838)
-var BlockNumberGas50x = big.NewInt(80370000) // Target 2nd Oct 2024
-var LimitTimeFinality = uint64(30)           // limit in 30 block
+var TIPTRC21Fee = big.NewInt(23779191)
+var TIPTRC21FeeTestnet = big.NewInt(23779191)
+var BlockNumberGas50x = big.NewInt(56828700)
+var LimitTimeFinality = uint64(30) // limit in 30 block
 
 var IgnoreSignerCheckBlockArray = map[uint64]bool{
 	uint64(1032300):  true,
