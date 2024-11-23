@@ -853,7 +853,10 @@ func (self *worker) commitNewWork() {
 			specialTxs = append(specialTxs, txStateRoot)
 		}
 	}
+	log.Info("[commitNewWork] LIAM start commitTransactions")
 	work.commitTransactions(self.mux, feeCapacity, txs, specialTxs, self.chain, self.coinbase, &self.pendingLogsFeed)
+	log.Info("[commitNewWork] LIAM end commitTransactions")
+
 	// compute uncles for the new block.
 	var (
 		uncles []*types.Header
@@ -881,6 +884,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 	var coalescedLogs []*types.Log
 	// first priority for special Txs
 	for _, tx := range specialTxs {
+		log.Info("[commitTransactions] LIAM specialTxs", "from", tx.From().Hex(), "to", tx.To().Hex())
 		to := tx.To()
 		//HF number for black-list
 		if (env.header.Number.Uint64() >= common.BlackListHFNumber) && !common.IsTestnet {
@@ -899,25 +903,30 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		data := tx.Data()
 		// validate minFee slot for XDCZ
 		if tx.IsXDCZApplyTransaction() {
+			log.Info("[commitTransactions] LIAM Start IsXDCZApplyTransaction")
 			copyState, _ := bc.State()
 			if err := core.ValidateXDCZApplyTransaction(bc, nil, copyState, common.BytesToAddress(data[4:])); err != nil {
 				log.Debug("XDCZApply: invalid token", "token", common.BytesToAddress(data[4:]).Hex())
 				txs.Pop()
 				continue
 			}
+			log.Info("[commitTransactions] LIAM End IsXDCZApplyTransaction")
 		}
 		// validate balance slot, token decimal for XDCX
 		if tx.IsXDCXApplyTransaction() {
+			log.Info("[commitTransactions] LIAM Start IsXDCXApplyTransaction")
+
 			copyState, _ := bc.State()
 			if err := core.ValidateXDCXApplyTransaction(bc, nil, copyState, common.BytesToAddress(data[4:])); err != nil {
 				log.Debug("XDCXApply: invalid token", "token", common.BytesToAddress(data[4:]).Hex())
 				txs.Pop()
 				continue
 			}
+			log.Info("[commitTransactions] LIAM End IsXDCXApplyTransaction")
 		}
 
 		if gp.Gas() < params.TxGas && tx.Gas() > 0 {
-			log.Trace("Not enough gas for further transactions", "gp", gp)
+			log.Debug("Not enough gas for further transactions", "gp", gp)
 			break
 		}
 		// Error may be ignored here. The error has already been checked
@@ -929,17 +938,17 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		// phase, start ignoring the sender until we do.
 		hash := tx.Hash()
 		if tx.Protected() && !env.config.IsEIP155(env.header.Number) {
-			log.Trace("Ignoring reply protected special transaction", "hash", hash, "eip155", env.config.EIP155Block)
+			log.Debug("Ignoring reply protected special transaction", "hash", hash, "eip155", env.config.EIP155Block)
 			continue
 		}
 		if *to == common.BlockSignersBinary {
 			if len(data) < 68 {
-				log.Trace("Data special transaction invalid length", "hash", hash, "data", len(data))
+				log.Debug("Data special transaction invalid length", "hash", hash, "data", len(data))
 				continue
 			}
 			blkNumber := binary.BigEndian.Uint64(data[8:40])
 			if blkNumber >= env.header.Number.Uint64() || blkNumber <= env.header.Number.Uint64()-env.config.XDPoS.Epoch*2 {
-				log.Trace("Data special transaction invalid number", "hash", hash, "blkNumber", blkNumber, "miner", env.header.Number)
+				log.Debug("Data special transaction invalid number", "hash", hash, "blkNumber", blkNumber, "miner", env.header.Number)
 				continue
 			}
 		}
@@ -948,18 +957,18 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 
 		nonce := env.state.GetNonce(from)
 		if nonce != tx.Nonce() && !tx.IsSkipNonceTransaction() {
-			log.Trace("Skipping account with special transaction invalid nonce", "sender", from, "nonce", nonce, "tx nonce ", tx.Nonce(), "to", to)
+			log.Debug("Skipping account with special transaction invalid nonce", "sender", from, "nonce", nonce, "tx nonce ", tx.Nonce(), "to", to)
 			continue
 		}
 		err, logs, tokenFeeUsed, gas := env.commitTransaction(balanceFee, tx, bc, coinbase, gp)
 		switch err {
 		case core.ErrNonceTooLow:
 			// New head notification data race between the transaction pool and miner, shift
-			log.Trace("Skipping special transaction with low nonce", "sender", from, "nonce", tx.Nonce(), "to", to)
+			log.Debug("Skipping special transaction with low nonce", "sender", from, "nonce", tx.Nonce(), "to", to)
 
 		case core.ErrNonceTooHigh:
 			// Reorg notification data race between the transaction pool and miner, skip account =
-			log.Trace("Skipping account with special transaction hight nonce", "sender", from, "nonce", tx.Nonce(), "to", to)
+			log.Debug("Skipping account with special transaction hight nonce", "sender", from, "nonce", tx.Nonce(), "to", to)
 		case nil:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
@@ -978,9 +987,11 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		}
 	}
 	for {
+		log.Info("[commitTransactions] for loop")
+
 		// If we don't have enough gas for any further transactions then we're done
 		if gp.Gas() < params.TxGas {
-			log.Trace("Not enough gas for further transactions", "gp", gp)
+			log.Debug("Not enough gas for further transactions", "gp", gp)
 			break
 		}
 		if txs == nil {
@@ -991,11 +1002,14 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		tx := txs.Peek()
 
 		if tx == nil {
+			log.Info("[commitTransactions] break for")
 			break
 		}
 
 		//HF number for black-list
 		to := tx.To()
+		log.Info("[commitTransactions] tx", to.Hex())
+
 		if (env.header.Number.Uint64() >= common.BlackListHFNumber) && !common.IsTestnet {
 			from := tx.From()
 			// check if sender is in black list
@@ -1040,7 +1054,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		// Check whether the tx is replay protected. If we're not in the EIP155 hf
 		// phase, start ignoring the sender until we do.
 		if tx.Protected() && !env.config.IsEIP155(env.header.Number) {
-			log.Trace("Ignoring reply protected transaction", "hash", hash, "eip155", env.config.EIP155Block)
+			log.Debug("Ignoring reply protected transaction", "hash", hash, "eip155", env.config.EIP155Block)
 			txs.Pop()
 			continue
 		}
@@ -1049,31 +1063,33 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 		nonce := env.state.GetNonce(from)
 		if nonce > tx.Nonce() {
 			// New head notification data race between the transaction pool and miner, shift
-			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
+			log.Debug("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Shift()
 			continue
 		}
 		if nonce < tx.Nonce() {
 			// Reorg notification data race between the transaction pool and miner, skip account =
-			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
+			log.Debug("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Pop()
 			continue
 		}
+		log.Info("[commitTransactions] start commitTransaction", to.Hex())
 		err, logs, tokenFeeUsed, gas := env.commitTransaction(balanceFee, tx, bc, coinbase, gp)
+		log.Info("[commitTransactions] end commitTransaction", to.Hex())
 		switch {
 		case errors.Is(err, core.ErrGasLimitReached):
 			// Pop the current out-of-gas transaction without shifting in the next from the account
-			log.Trace("Gas limit exceeded for current block", "sender", from)
+			log.Debug("Gas limit exceeded for current block", "sender", from)
 			txs.Pop()
 
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
-			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
+			log.Debug("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Shift()
 
 		case errors.Is(err, core.ErrNonceTooHigh):
 			// Reorg notification data race between the transaction pool and miner, skip account =
-			log.Trace("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
+			log.Debug("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Pop()
 
 		case errors.Is(err, nil):
@@ -1084,7 +1100,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 
 		case errors.Is(err, core.ErrTxTypeNotSupported):
 			// Pop the unsupported transaction without shifting in the next from the account
-			log.Trace("Skipping unsupported transaction type", "sender", from, "type", tx.Type())
+			log.Debug("Skipping unsupported transaction type", "sender", from, "type", tx.Type())
 			txs.Pop()
 
 		default:
@@ -1100,7 +1116,10 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			totalFeeUsed = totalFeeUsed.Add(totalFeeUsed, fee)
 		}
 	}
+	log.Info("[commitTransactions] start UpdateTRC21Fee")
+
 	state.UpdateTRC21Fee(env.state, balanceUpdated, totalFeeUsed)
+	log.Info("[commitTransactions] end UpdateTRC21Fee")
 	// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
 	// logs by filling in the block hash when the block was mined by the local miner. This can
 	// cause a race condition if a log was "upgraded" before the PendingLogsEvent is processed.
