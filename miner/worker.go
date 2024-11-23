@@ -1077,9 +1077,9 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 			txs.Pop()
 			continue
 		}
-		log.Info("[commitTransactions] start commitTransaction", to.Hex())
+		log.Info("[commitTransactions] start commitTransaction", "nonce", nonce)
 		err, logs, tokenFeeUsed, gas := env.commitTransaction(balanceFee, tx, bc, coinbase, gp)
-		log.Info("[commitTransactions] end commitTransaction", to.Hex())
+		log.Info("[commitTransactions] end commitTransaction", "nonce", nonce)
 		switch {
 		case errors.Is(err, core.ErrGasLimitReached):
 			// Pop the current out-of-gas transaction without shifting in the next from the account
