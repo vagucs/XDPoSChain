@@ -88,7 +88,7 @@ var (
 			SwitchRound:          0,
 			CertThreshold:        0.45,
 			TimeoutSyncThreshold: 3,
-			TimeoutPeriod:        5,
+			TimeoutPeriod:        20,
 			MinePeriod:           2,
 		},
 		900000: {
