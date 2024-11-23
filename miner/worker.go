@@ -1008,7 +1008,11 @@ func (env *Work) commitTransactions(mux *event.TypeMux, balanceFee map[common.Ad
 
 		//HF number for black-list
 		to := tx.To()
-		log.Info("[commitTransactions] tx", to.Hex())
+		if to != nil && tx.From() != nil {
+			log.Info("[commitTransactions] tx", "to", to.Hex(), "from", tx.From().Hex())
+		} else {
+			log.Info("[commitTransactions] nil to")
+		}
 
 		if (env.header.Number.Uint64() >= common.BlackListHFNumber) && !common.IsTestnet {
 			from := tx.From()
