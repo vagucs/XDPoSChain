@@ -75,7 +75,7 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, minePeriodCh chan i
 	config := chainConfig.XDPoS
 	// Setup timeoutTimer
 	duration := time.Duration(config.V2.CurrentConfig.TimeoutPeriod) * time.Second
-	timeoutTimer := countdown.NewCountDown(duration)
+	timeoutTimer := countdown.NewExpCountDown(duration, config.V2.CurrentConfig.ExpTimeoutConfig.Base, config.V2.CurrentConfig.ExpTimeoutConfig.MaxExponent)
 
 	snapshots, _ := lru.NewARC(utils.InmemorySnapshots)
 	signatures, _ := lru.NewARC(utils.InmemorySnapshots)
@@ -143,7 +143,7 @@ func (x *XDPoS_v2) UpdateParams(header *types.Header) {
 
 	// Setup timeoutTimer
 	duration := time.Duration(x.config.V2.CurrentConfig.TimeoutPeriod) * time.Second
-	x.timeoutWorker.SetParams(duration)
+	x.timeoutWorker.SetParams(duration, x.config.V2.CurrentConfig.ExpTimeoutConfig.Base, x.config.V2.CurrentConfig.ExpTimeoutConfig.MaxExponent)
 
 	// avoid deadlock
 	go func() {
