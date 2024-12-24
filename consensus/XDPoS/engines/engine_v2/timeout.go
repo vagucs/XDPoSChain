@@ -121,6 +121,7 @@ func (x *XDPoS_v2) verifyTC(chain consensus.ChainReader, timeoutCert *types.Time
 	if latestBlockRound < timeoutCert.Round {
 		tcEpoch = x.config.V2.SwitchBlock.Uint64()/x.config.Epoch + uint64(latestBlockRound)/x.config.Epoch
 	}
+	log.Warn("[verifyTC] round info", "tcEpoch", tcEpoch, "latestBlockRound", latestBlockRound, "timeoutCert.Round", timeoutCert.Round)
 
 	epochBlockInfo, err := x.GetBlockByEpochNumber(chain, tcEpoch)
 	if err != nil {
@@ -133,6 +134,7 @@ func (x *XDPoS_v2) verifyTC(chain consensus.ChainReader, timeoutCert *types.Time
 		log.Error("[verifyTC] Error when getting epoch switch info", "error", err)
 		return fmt.Errorf("fail on verifyTC due to failure in getting epoch switch info, %s", err)
 	}
+	log.Warn("[verifyTC] epochInfo", "number", epochInfo.EpochSwitchBlockInfo.Number, "round", epochInfo.EpochSwitchBlockInfo.Round, "MasternodesLen", epochInfo.MasternodesLen)
 
 	certThreshold := x.config.V2.Config(uint64(timeoutCert.Round)).CertThreshold
 	if float64(len(signatures)) < float64(epochInfo.MasternodesLen)*certThreshold {
